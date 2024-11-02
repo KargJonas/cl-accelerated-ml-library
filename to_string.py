@@ -13,21 +13,21 @@ def uid_to_color(uid: int, background: bool = False) -> str:
     return f"\033[{color_type};2;{r};{g};{b}m"
 
 def get_tensor_name(tensor: Tensor):
-    name = f"{tensor.op} | {uid_to_color(tensor.uid)}{tensor.uid}{reset}"
+    name = f"{tensor.op} | {tensor.shape} | {uid_to_color(tensor.uid)}{tensor.uid}{reset}"
     if tensor.name: name = f"{tensor.name} ({name})"
     return name
 
 def tree_str(current_tensor: Tensor, visited: Set[Tensor] = set(), prefix: str = "", is_last: bool = True, is_root: bool = True) -> str:
     identifier = get_tensor_name(current_tensor)
-    result = f" {identifier}\n" if is_root else f" {prefix}{bold}{'└─ ' if is_last else '├─ '}{identifier}{reset}\n"
+    result = f" {bold}{identifier}{reset}\n" if is_root else f" {prefix}{'└─ ' if is_last else '├─ '}{identifier}\n"
     visited.add(current_tensor)
-    new_prefix = prefix + f"{bold}{'   ' if is_last else '|  '}"
+    new_prefix = prefix + f"{'   ' if is_last else '|  '}"
     for index, parent in enumerate(current_tensor.parents):
         parent_is_last = index == len(current_tensor.parents) - 1
         if id(parent) in visited:
             connector = "└─ " if parent_is_last else "├─ "
             parent_identifier = parent.op
-            result += f"{new_prefix}{bold}{connector}{parent_identifier} (already visited){reset}\n"
+            result += f"{new_prefix}{connector}{parent_identifier} (already visited){reset}\n"
         else:
             result += tree_str(parent, visited, new_prefix, parent_is_last, False)
     return result
