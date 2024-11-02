@@ -2,20 +2,8 @@ from __future__ import annotations
 from typing import List
 from ops import *
 
-# # this will cause issues with the ternary ops
-# def broadcast(a: List[int], b: List[int])-> List[int]:
-#     if a is None or b is None: raise ValueError("cannot infer shape from parents")
-#     if len(b) > len(a): a, b = b, a     # ensure a is longer or equal to b
-#     b = [None] * (len(a) - len(b)) + b  # extend b with None to the left
-#     shape = []
-#     for (size_a, size_b) in zip(a, b):
-#         if size_b == None or size_b == 1 or size_a == size_b: shape.append(size_a)
-#         elif size_a == 1: shape.append(size_b)
-#         else: raise ValueError(f"shapes incompatible for broadcasting: {a} ~ {b}")
-#     return shape
-
 # generalized broadcasting for an arbitrary number of shapes
-def broadcast(*shapes: List[List[int]])-> List[int]:
+def broadcast(shapes: List[List[int]])-> List[int]:
     if None in shapes: raise ValueError("cannot infer shape from parents")
     longest = len(max(shapes, key=len))
     shapes = [[1] * (longest - len(shape)) + shape for shape in shapes]
@@ -30,27 +18,57 @@ def broadcast(*shapes: List[List[int]])-> List[int]:
         else: raise ValueError(f"shapes incompatible for broadcasting {'~'.join(shapes)}")
     return shape
 
+# this will be the order of operations:
+#   1. create graph
+#   2. find schedule
+#   3. propagate shapes
+#   4. patch reshapes into the graph where necessary.
+#      (e.g Tensor(3) + Tensor(3, 1) -> Tensor(3, 1) will be converted
+#      to (Tensor(3).reshape(3, 1)) + Tensor(3, 1) -> Tensor(3, 1))
+#      since reshapes don't hold data and don't need execution,
+#      it's not necessary recompute the schedule (todo: validate)
+#   5. use now available shapes along with the ops of each tensor
+#      to generate kernel and buffer specifications
+#   6. use specs to generate opencl code
+
 class Tensor:
+    id_counter = 0
+    
     def __init__(self, *shape, **kwargs):
-        self.shape = shape or None
-        self.op = kwargs.get("op", MetaOps.CONST)
-        self.parents = kwargs.get("parents", None)
+        self.uid = Tensor.id_counter
+        Tensor.id_counter += 1
+        self.shape: List[int] = list(shape) or None
+        self.op: Op = kwargs.get("op", MetaOps.CONST)
+        self.parents: List[Tensor] = kwargs.get("parents", [])
+        self.name: str = kwargs.get("name", None)
+        self.needs_reshape = False
         
     def find_shape(self):
         if self.op is MetaOps.CONST: return
-        self.shape = broadcast()
-        
-    def binary(self, op: Op):
-        return lambda other: Tensor(op=op, parents=[self, other ])
+        elif self.op in UnaryOps: self.shape = self.parents[0].shape
+        elif self.op in BinaryOps or self.op in TernaryOps: self.shape = broadcast([parent.shape for parent in self.parents])
+        else: raise NotImplementedError(f"Operation \"{self.op}\" not implemented.")
+        # todo: for reduce ops, we need meta info
     
+    # this is a naive algorithm. later, we should use something smarter to enable multi-gpu computation
+    def schedule(self, order: List[Tensor] = []) -> List[Tensor]:
+        if self in order and self.op != MetaOps.CONST: raise RecursionError("Detected a cycle in the computation graph. Computation graphs must be acyclic.")
+        order = [self] + order
+        for parent in self.parents:
+            order = parent.schedule() + order
+        return order
+
+    # def augment_graph():
+    #     ...
+
+    def realize(self):
+        sched = self.schedule() # find execution order
+        for node in sched: node.find_shape() # use schedule to perform shape inference/propagation
+        # at this point we have enough information to generate the kernels and run them
+
     # If the dimensions of the parents match exactly, we will create only one node that does pairwise add.
     # If the dimensions are broadcastable, we'll introduce the necessary reshapes before the add.
     # Any overhead can later be optimized and fused away.
     # If the dimension are not broadcastable, we'll raise an error.
-    def add(self, other: Tensor):
-        return Tensor(op=BinaryOps.ADD, parents=[self, other])
-        
-        
-# t = Tensor(3, 2, 4)
-
-print(broadcast([3], [1, 3], [3, 1]))
+    def add(self, other: Tensor, **kwargs):
+        return Tensor(op=BinaryOps.ADD, parents=[self, other], name=kwargs.get("name"))
