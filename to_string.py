@@ -13,7 +13,7 @@ def uid_to_color(uid: int, background: bool = False) -> str:
     return f"\033[{color_type};2;{r};{g};{b}m"
 
 def get_tensor_name(tensor: Tensor):
-    name = f"{tensor.op} | {tensor.shape} | {uid_to_color(tensor.uid)}{tensor.uid}{reset}"
+    name = f"{tensor.op} | {tensor.shape} -> {tensor.strides} | {uid_to_color(tensor.uid)}{tensor.uid}{reset}"
     if tensor.name: name = f"{tensor.name} ({name})"
     return name
 
