@@ -1,28 +1,20 @@
-from enum import Enum, IntEnum, auto
-from typing import Union
+from enum import IntEnum
 
 
-class FastEnum(IntEnum):
-  def __str__(self): return Enum.__str__(self)
+class UnaryOps(IntEnum):
+    EXP2 = 100; LOG2 = 101; CAST = 102; BITCAST = 103; SIN = 104; SQRT = 105; RECIP = 106; NEG = 107
 
-class UnaryOps(FastEnum):
-  """A -> A (elementwise)"""
-  EXP2 = auto(); LOG2 = auto(); CAST = auto(); BITCAST = auto(); SIN = auto(); SQRT = auto(); RECIP = auto(); NEG = auto() # noqa: E702
+class BinaryOps(IntEnum):
+    ADD = 200; MUL = 201; IDIV = 202; MAX = 203; MOD = 204; CMPLT = 205; CMPNE = 206; XOR = 207
+    SHL = 208; SHR = 209; OR = 210; AND = 211; THREEFRY = 212; SUB = 213
 
-class BinaryOps(FastEnum):
-  """A + A -> A (elementwise)"""
-  ADD = auto(); MUL = auto(); IDIV = auto(); MAX = auto(); MOD = auto(); CMPLT = auto(); CMPNE = auto(); XOR = auto() # noqa: E702
-  SHL = auto(); SHR = auto(); OR = auto(); AND = auto(); THREEFRY = auto(); SUB = auto() # noqa: E702
+class TernaryOps(IntEnum):
+    WHERE = 300; MULACC = 301
 
-class TernaryOps(FastEnum):
-  """A + A + A -> A (elementwise)"""
-  WHERE = auto(); MULACC = auto() # noqa: E702
+class ReduceOps(IntEnum):
+    SUM = 400; PROD = 401; MAX = 402
 
-class ReduceOps(FastEnum):
-  """A -> B (reduce)"""
-  SUM = auto(); PROD = auto(); MAX = auto() # noqa: E702
+class MetaOps(IntEnum):
+    EMPTY = 500; CONST = 501; COPY = 502; CONTIGUOUS = 503; ASSIGN = 504; VIEW = 505
 
-class MetaOps(FastEnum):
-  EMPTY = auto(); CONST = auto(); COPY = auto(); CONTIGUOUS = auto(); ASSIGN = auto(); VIEW = auto() # noqa: E702
-
-Op = Union[UnaryOps, BinaryOps, ReduceOps, MetaOps, TernaryOps]
+Op = (*UnaryOps, *BinaryOps, *TernaryOps, *ReduceOps, *MetaOps)
